@@ -54,10 +54,9 @@
         <!--
               :: Steps to produce a JPMS compatible pulsar client snapshot ::
 
-            git clone git@github.com:statisticsnorway/pulsar.git
+            git clone git@github.com:apache/pulsar.git
             cd pulsar
-            git checkout client-api-split-package-jpms-compatibility
-            mvn clean install -am -pl pulsar-client-admin -DskipTests
+            mvn clean install -am -pl pulsar-client-admin-shaded -DskipTests
         -->
         <dependency>
             <groupId>org.apache.pulsar</groupId>
