@@ -3,6 +3,7 @@ package no.ssb.sagalog.pulsar;
 import no.ssb.sagalog.SagaLog;
 import no.ssb.sagalog.SagaLogEntry;
 import no.ssb.sagalog.SagaLogEntryBuilder;
+import no.ssb.sagalog.SagaLogId;
 import no.ssb.sagalog.SagaLogInitializer;
 import no.ssb.sagalog.SagaLogPool;
 import org.apache.pulsar.client.admin.PulsarAdmin;
@@ -32,6 +33,8 @@ import static org.testng.Assert.assertEquals;
 
 @Test(groups = "integration")
 public class PulsarSagaLogTest {
+
+    private static final SagaLogId SAGA_LOG_ID = new SagaLogId("testng-main-thread");
 
     private SagaLogPool pool;
     private SagaLog sagaLog;
@@ -75,14 +78,14 @@ public class PulsarSagaLogTest {
 
     @BeforeMethod
     private void createAndCleanPulsarSagaLog() {
-        pool.release("testng-main-thread");
-        sagaLog = pool.connect("testng-main-thread");
+        pool.release(SAGA_LOG_ID);
+        sagaLog = pool.connect(SAGA_LOG_ID);
         sagaLog.truncate();
     }
 
     @AfterMethod
     private void closePulsarSagaLog() {
-        pool.release("testng-main-thread");
+        pool.release(SAGA_LOG_ID);
     }
 
     @Test

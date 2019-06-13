@@ -3,6 +3,7 @@ import no.ssb.sagalog.pulsar.PulsarSagaLogInitializer;
 
 module no.ssb.sagalog.pulsar {
     requires no.ssb.sagalog;
+    requires pulsar.client.api;
     requires pulsar.client.admin;
     requires java.sql;
 

@@ -5,6 +5,7 @@ import no.ssb.sagalog.SagaLogEntry;
 import no.ssb.sagalog.SagaLogEntryBuilder;
 import no.ssb.sagalog.SagaLogEntryId;
 import no.ssb.sagalog.SagaLogEntryType;
+import no.ssb.sagalog.SagaLogId;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
@@ -29,27 +30,35 @@ import java.util.stream.StreamSupport;
 
 class PulsarSagaLog implements SagaLog, AutoCloseable {
 
+    private final SagaLogId sagaLogId;
+
     private final Producer<byte[]> producer;
     private final Consumer<byte[]> consumer;
 
     private final Deque<SagaLogEntry> cache = new ConcurrentLinkedDeque<>();
 
-    PulsarSagaLog(PulsarClient client, String topic, String application, String applicationInstanceId) {
+    PulsarSagaLog(SagaLogId sagaLogId, PulsarClient client, String clusterName, String clusterInstanceId) {
+        this.sagaLogId = sagaLogId;
         try {
             this.producer = client.newProducer()
-                    .topic(topic)
-                    .producerName(application + "::" + applicationInstanceId)
+                    .topic(sagaLogId.getInternalId())
+                    .producerName(clusterName + "::" + clusterInstanceId)
                     .create();
             this.consumer = client.newConsumer()
-                    .topic(topic)
+                    .topic(sagaLogId.getInternalId())
                     .subscriptionType(SubscriptionType.Exclusive)
-                    .consumerName(application + "::" + applicationInstanceId)
+                    .consumerName(clusterName + "::" + clusterInstanceId)
                     .subscriptionName("master")
                     .subscribe();
             readExternal().forEachOrdered(entry -> cache.add(entry));
         } catch (PulsarClientException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public SagaLogId id() {
+        return sagaLogId;
     }
 
     private Stream<SagaLogEntry> readExternal() {
