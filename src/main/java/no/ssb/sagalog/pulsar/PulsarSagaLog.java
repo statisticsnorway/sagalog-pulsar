@@ -40,16 +40,16 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
     PulsarSagaLog(SagaLogId sagaLogId, PulsarClient client, String clusterName, String clusterInstanceId) {
         this.sagaLogId = sagaLogId;
         try {
-            this.producer = client.newProducer()
-                    .topic(sagaLogId.getInternalId())
-                    .producerName(clusterName + "::" + clusterInstanceId)
-                    .create();
             this.consumer = client.newConsumer()
                     .topic(sagaLogId.getInternalId())
                     .subscriptionType(SubscriptionType.Exclusive)
                     .consumerName(clusterName + "::" + clusterInstanceId)
                     .subscriptionName("master")
                     .subscribe();
+            this.producer = client.newProducer()
+                    .topic(sagaLogId.getInternalId())
+                    .producerName(clusterName + "::" + clusterInstanceId)
+                    .create();
             readExternal().forEachOrdered(entry -> cache.add(entry));
         } catch (PulsarClientException e) {
             throw new RuntimeException(e);
