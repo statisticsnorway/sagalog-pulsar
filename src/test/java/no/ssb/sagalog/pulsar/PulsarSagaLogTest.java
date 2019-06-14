@@ -4,16 +4,14 @@ import no.ssb.sagalog.SagaLog;
 import no.ssb.sagalog.SagaLogEntry;
 import no.ssb.sagalog.SagaLogEntryBuilder;
 import no.ssb.sagalog.SagaLogId;
-import no.ssb.sagalog.SagaLogInitializer;
-import no.ssb.sagalog.SagaLogPool;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
+import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.impl.auth.AuthenticationDisabled;
 import org.apache.pulsar.client.impl.conf.ClientConfigurationData;
 import org.apache.pulsar.common.policies.data.Policies;
 import org.apache.pulsar.common.policies.data.TenantInfo;
-import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
@@ -36,17 +34,13 @@ public class PulsarSagaLogTest {
 
     private static final SagaLogId SAGA_LOG_ID = new SagaLogId("testng-main-thread");
 
-    private SagaLogPool pool;
-    private SagaLog sagaLog;
+    private PulsarSagaLog sagaLog;
 
     @BeforeClass
-    public void createPool() {
-        SagaLogInitializer initializer = new PulsarSagaLogInitializer();
-        Map<String, String> configuration = initializer.configurationOptionsAndDefaults();
-
-        String adminServiceUrl = configuration.get("pulsar.admin.service.url");
-        String tenant = configuration.get("pulsar.sagalog.tenant");
-        String namespace = configuration.get("pulsar.sagalog.namespace");
+    public void initializePulsarTenantAndNamespace() throws PulsarClientException, PulsarAdminException {
+        String adminServiceUrl = "http://localhost:8080";
+        String tenant = "mycompany";
+        String namespace = "internal-sagalog-integration-testing";
 
         ClientConfigurationData config = new ClientConfigurationData();
         config.setAuthentication(new AuthenticationDisabled());
@@ -60,32 +54,24 @@ public class PulsarSagaLogTest {
             }
             List<String> namespaces = admin.namespaces().getNamespaces(tenant);
             if (!namespaces.contains(tenant + "/" + namespace)) {
-                admin.namespaces().createNamespace(tenant + "/" + namespace, new Policies()); // TODO policies here, like retention etc.
-            } else {
-                // TODO update namespace policies and permissions
+                admin.namespaces().createNamespace(tenant + "/" + namespace, new Policies());
             }
-        } catch (PulsarClientException | PulsarAdminException e) {
-            throw new RuntimeException(e);
         }
-
-        pool = initializer.initialize(configuration);
-    }
-
-    @AfterClass
-    public void shutdownPool() {
-        pool.shutdown();
     }
 
     @BeforeMethod
-    private void createAndCleanPulsarSagaLog() {
-        pool.release(SAGA_LOG_ID);
-        sagaLog = pool.connect(SAGA_LOG_ID);
+    private void createAndCleanPulsarSagaLog() throws PulsarClientException {
+        sagaLog = new PulsarSagaLog(
+                SAGA_LOG_ID,
+                PulsarClient.builder().serviceUrl("pulsar://localhost:6650").build(),
+                "internal-sagalog-integration-testing",
+                "01");
         sagaLog.truncate();
     }
 
     @AfterMethod
-    private void closePulsarSagaLog() {
-        pool.release(SAGA_LOG_ID);
+    private void closePulsarSagaLog() throws PulsarClientException {
+        sagaLog.close();
     }
 
     @Test
