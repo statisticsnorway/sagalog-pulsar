@@ -66,7 +66,7 @@ public class PulsarSagaLogTest {
                 PulsarClient.builder().serviceUrl("pulsar://localhost:6650").build(),
                 "internal-sagalog-integration-testing",
                 "01");
-        sagaLog.truncate();
+        sagaLog.truncate().join();
     }
 
     @AfterMethod
