@@ -93,11 +93,12 @@ class PulsarSagaLogPool implements SagaLogPool {
 
     @Override
     public SagaLog acquire(SagaLogOwner owner, SagaLogId logId) throws SagaLogAlreadyAquiredByOtherOwnerException {
+        SagaLog sagaLog = connect(logId);
         SagaLogOwnership ownership = ownershipByLogId.computeIfAbsent(logId, id -> new SagaLogOwnership(owner, id, ZonedDateTime.now()));
         if (!owner.equals(ownership.getOwner())) {
             throw new SagaLogAlreadyAquiredByOtherOwnerException(String.format("SagaLogOwner %s was unable to acquire saga-log with id %s. Already owned by %s.", owner.getOwnerId(), logId, ownership.getOwner().getOwnerId()));
         }
-        return connect(logId);
+        return sagaLog;
     }
 
     @Override
