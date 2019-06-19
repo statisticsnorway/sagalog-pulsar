@@ -6,12 +6,16 @@ import no.ssb.sagalog.SagaLogId;
 import no.ssb.sagalog.SagaLogOwner;
 import no.ssb.sagalog.SagaLogOwnership;
 import no.ssb.sagalog.SagaLogPool;
+import org.apache.pulsar.client.admin.Namespaces;
 import org.apache.pulsar.client.admin.PulsarAdminException;
+import org.apache.pulsar.client.admin.Tenants;
+import org.apache.pulsar.client.admin.Topics;
 import org.apache.pulsar.common.policies.data.TenantInfo;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,7 +34,11 @@ public class PulsarSagaLogPoolTest {
     @BeforeMethod
     public void setup() throws PulsarAdminException {
         PulsarSagaLogInitializer initializer = new PulsarSagaLogInitializer();
-        Map<String, String> configuration = initializer.configurationOptionsAndDefaults();
+        Map<String, String> configuration = new LinkedHashMap<>(initializer.configurationOptionsAndDefaults());
+        configuration.put("cluster.owner", "distributed-saga-testng");
+        configuration.put("cluster.name", "pulsar-saga-log-pool-test");
+        configuration.put("cluster.instance-id", "pool-test-01");
+
         this.pool = initializer.initialize(configuration);
 
         /*
@@ -39,25 +47,28 @@ public class PulsarSagaLogPoolTest {
 
         PulsarSagaLogPool pool = (PulsarSagaLogPool) this.pool;
 
+        Tenants tenants = pool.admin.tenants();
+        Namespaces namespaces = pool.admin.namespaces();
+        Topics topics = pool.admin.topics();
         try {
-            List<String> existingTenants = pool.admin.tenants().getTenants();
+            List<String> existingTenants = tenants.getTenants();
             if (!existingTenants.contains(pool.tenant)) {
                 // create missing tenant
-                pool.admin.tenants().createTenant(pool.tenant, new TenantInfo(Set.of(), Set.of("standalone")));
+                tenants.createTenant(pool.tenant, new TenantInfo(Set.of(), Set.of("standalone")));
             }
-            List<String> existingNamespaces = pool.admin.namespaces().getNamespaces(pool.tenant);
+            List<String> existingNamespaces = namespaces.getNamespaces(pool.tenant);
             if (!existingNamespaces.contains(pool.tenant + "/" + pool.namespace)) {
                 // create missing namespace
-                pool.admin.namespaces().createNamespace(pool.tenant + "/" + pool.namespace);
+                namespaces.createNamespace(pool.tenant + "/" + pool.namespace);
             }
         } catch (PulsarAdminException e) {
             throw new RuntimeException(e);
         }
 
         // delete all topics in namespace
-        List<String> sagaLogTopics = pool.admin.namespaces().getTopics(pool.tenant + "/" + pool.namespace);
+        List<String> sagaLogTopics = namespaces.getTopics(pool.tenant + "/" + pool.namespace);
         for (String sagaLogTopic : sagaLogTopics) {
-            pool.admin.topics().delete(sagaLogTopic);
+            topics.delete(sagaLogTopic);
         }
     }
 
@@ -133,8 +144,9 @@ public class PulsarSagaLogPoolTest {
 
     @Test
     public void thatInstanceLocalSagaLogOwnershipsWorks() {
-        SagaLogId e1 = pool.idFor("e1");
-        SagaLogId e2 = pool.idFor("e2");
+        PulsarSagaLogPool pool = (PulsarSagaLogPool) this.pool;
+        SagaLogId e1 = new SagaLogId("persistent://" + pool.tenant + "/" + pool.namespace + "/" + pool.instanceId + ":" + "e1");
+        SagaLogId e2 = new SagaLogId("persistent://" + pool.tenant + "/" + pool.namespace + "/" + pool.instanceId + ":" + "e2");
         pool.connect(e1);
         pool.connect(e2);
         pool.remove(e1);
@@ -162,8 +174,9 @@ public class PulsarSagaLogPoolTest {
 
     @Test
     public void thatClusterWide() {
-        SagaLogId e1 = pool.idFor("e1");
-        SagaLogId e2 = pool.idFor("e2");
+        PulsarSagaLogPool pool = (PulsarSagaLogPool) this.pool;
+        SagaLogId e1 = new SagaLogId("persistent://" + pool.tenant + "/" + pool.namespace + "/" + pool.instanceId + ":" + "e1");
+        SagaLogId e2 = new SagaLogId("persistent://" + pool.tenant + "/" + pool.namespace + "/" + pool.instanceId + ":" + "e2");
         pool.connect(e1);
         pool.connect(e2);
         pool.remove(e1);
