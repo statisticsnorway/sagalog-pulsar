@@ -4,8 +4,10 @@ import no.ssb.sagalog.SagaLog;
 import no.ssb.sagalog.SagaLogEntry;
 import no.ssb.sagalog.SagaLogEntryBuilder;
 import no.ssb.sagalog.SagaLogId;
+import org.apache.pulsar.client.admin.Namespaces;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
+import org.apache.pulsar.client.admin.Topics;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.impl.auth.AuthenticationDisabled;
@@ -39,14 +41,17 @@ public class PulsarSagaLogTest {
     @BeforeClass
     public void initializePulsarTenantAndNamespace() throws PulsarClientException, PulsarAdminException {
         String adminServiceUrl = "http://localhost:8080";
-        String tenant = "mycompany";
-        String namespace = "internal-sagalog-integration-testing";
 
         ClientConfigurationData config = new ClientConfigurationData();
         config.setAuthentication(new AuthenticationDisabled());
         config.setServiceUrl(adminServiceUrl);
 
         try (PulsarAdmin admin = new PulsarAdmin(adminServiceUrl, config)) {
+
+            String tenant = "mycompany";
+            String namespace = "internal-sagalog-integration-testing";
+            deleteAllTopicsAndNamespaces(admin, tenant);
+
             if (!admin.tenants().getTenants().contains(tenant)) {
                 admin.tenants().createTenant(tenant, new TenantInfo(Set.of(), Set.of("standalone")));
             } else {
@@ -72,6 +77,28 @@ public class PulsarSagaLogTest {
     @AfterMethod
     private void closePulsarSagaLog() throws PulsarClientException {
         sagaLog.close();
+    }
+
+    private void deleteAllTopicsAndNamespaces(PulsarAdmin admin, String tenant) {
+        try {
+            Namespaces namespaces = admin.namespaces();
+            Topics topics = admin.topics();
+            // delete all topics and namespaces for configured tenant
+            List<String> existingNamespaces = namespaces.getNamespaces(tenant);
+            for (String namespace : existingNamespaces) {
+                for (String topic : topics.getList(namespace)) {
+                    for (String subscription : topics.getSubscriptions(topic)) {
+                        System.out.format("Deleting subscription %s from topic %s...%n", subscription, topic);
+                        topics.deleteSubscription(topic, subscription);
+                        System.out.format("Deleted subscription %s from topic %s%n", subscription, topic);
+                    }
+                    topics.delete(topic);
+                }
+                namespaces.deleteNamespace(namespace);
+            }
+        } catch (PulsarAdminException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test
