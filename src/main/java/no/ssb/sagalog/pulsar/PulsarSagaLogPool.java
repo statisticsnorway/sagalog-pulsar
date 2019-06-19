@@ -78,8 +78,16 @@ class PulsarSagaLogPool implements SagaLogPool {
     }
 
     @Override
-    public SagaLog connect(SagaLogId logId) {
-        return sagaLogByLogId.computeIfAbsent(logId, slid -> new PulsarSagaLog(slid, client, namespace, instanceId));
+    public SagaLog connect(SagaLogId logId) throws SagaLogAlreadyAquiredByOtherOwnerException {
+        return sagaLogByLogId.computeIfAbsent(logId, slid -> {
+            try {
+                return new PulsarSagaLog(slid, client, namespace, instanceId);
+            } catch (PulsarClientException.ConsumerBusyException e) {
+                throw new SagaLogAlreadyAquiredByOtherOwnerException("consumer busy - another consumer is already connected with exclusive subscription");
+            } catch (PulsarClientException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     @Override

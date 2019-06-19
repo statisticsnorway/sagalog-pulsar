@@ -37,23 +37,19 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
 
     private final Deque<SagaLogEntry> cache = new ConcurrentLinkedDeque<>();
 
-    PulsarSagaLog(SagaLogId sagaLogId, PulsarClient client, String clusterName, String clusterInstanceId) {
+    PulsarSagaLog(SagaLogId sagaLogId, PulsarClient client, String clusterName, String clusterInstanceId) throws PulsarClientException {
         this.sagaLogId = sagaLogId;
-        try {
-            this.consumer = client.newConsumer()
-                    .topic(sagaLogId.getInternalId())
-                    .subscriptionType(SubscriptionType.Exclusive)
-                    .consumerName(clusterName + "::" + clusterInstanceId)
-                    .subscriptionName("master")
-                    .subscribe();
-            this.producer = client.newProducer()
-                    .topic(sagaLogId.getInternalId())
-                    .producerName(clusterName + "::" + clusterInstanceId)
-                    .create();
-            readExternal().forEachOrdered(entry -> cache.add(entry));
-        } catch (PulsarClientException e) {
-            throw new RuntimeException(e);
-        }
+        this.consumer = client.newConsumer()
+                .topic(sagaLogId.getInternalId())
+                .subscriptionType(SubscriptionType.Exclusive)
+                .consumerName(clusterName + "::" + clusterInstanceId)
+                .subscriptionName("master")
+                .subscribe();
+        this.producer = client.newProducer()
+                .topic(sagaLogId.getInternalId())
+                .producerName(clusterName + "::" + clusterInstanceId)
+                .create();
+        readExternal().forEachOrdered(entry -> cache.add(entry));
     }
 
     @Override
