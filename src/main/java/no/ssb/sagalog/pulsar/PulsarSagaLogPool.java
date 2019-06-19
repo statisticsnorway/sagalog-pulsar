@@ -13,10 +13,12 @@ import org.apache.pulsar.client.api.PulsarClientException;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -29,6 +31,7 @@ class PulsarSagaLogPool implements SagaLogPool {
     final String namespace;
     final String instanceId;
 
+    private final Set<SagaLogId> instanceLocalSagaLogIds = new CopyOnWriteArraySet();
     private final Map<SagaLogId, PulsarSagaLog> sagaLogByLogId = new ConcurrentHashMap<>();
     private final Map<SagaLogId, SagaLogOwnership> ownershipByLogId = new ConcurrentHashMap<>();
 
@@ -40,7 +43,6 @@ class PulsarSagaLogPool implements SagaLogPool {
         this.tenant = tenant;
         this.namespace = namespace;
         this.instanceId = instanceId;
-        idFor("GhostLog"); // force early failure if pattern cannot be used with configuration
     }
 
     @Override
@@ -50,7 +52,9 @@ class PulsarSagaLogPool implements SagaLogPool {
         if (!m.matches()) {
             throw new RuntimeException("topic does not match sagalog pattern: " + topic);
         }
-        return new SagaLogId(topic);
+        SagaLogId sagaLogId = new SagaLogId(topic);
+        instanceLocalSagaLogIds.add(sagaLogId);
+        return sagaLogId;
     }
 
     @Override
@@ -65,7 +69,7 @@ class PulsarSagaLogPool implements SagaLogPool {
 
     @Override
     public Set<SagaLogId> instanceLocalLogIds() {
-        return new LinkedHashSet<>(sagaLogByLogId.keySet());
+        return Collections.unmodifiableSet(instanceLocalSagaLogIds);
     }
 
     @Override
