@@ -34,7 +34,7 @@ import static org.testng.Assert.assertEquals;
 @Test(groups = "integration")
 public class PulsarSagaLogTest {
 
-    private static final SagaLogId SAGA_LOG_ID = new SagaLogId("testng-main-thread");
+    private static final SagaLogId SAGA_LOG_ID = new PulsarSagaLogId("mycompany", "internal-sagalog-integration-testing", "01", "the-saga-log");
 
     private PulsarSagaLog sagaLog;
 
@@ -65,8 +65,9 @@ public class PulsarSagaLogTest {
     }
 
     @BeforeMethod
-    private void createAndCleanPulsarSagaLog() throws PulsarClientException {
+    private void createAndCleanPulsarSagaLog() throws PulsarClientException, PulsarAdminException {
         sagaLog = new PulsarSagaLog(
+                null, // TODO create admin
                 SAGA_LOG_ID,
                 PulsarClient.builder().serviceUrl("pulsar://localhost:6650").build(),
                 "internal-sagalog-integration-testing",
