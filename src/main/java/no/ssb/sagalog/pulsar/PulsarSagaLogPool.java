@@ -45,7 +45,7 @@ class PulsarSagaLogPool extends AbstractSagaLogPool {
     @Override
     protected SagaLog connectExternal(SagaLogId logId) throws SagaLogBusyException {
         try {
-            return new PulsarSagaLog(admin, logId, client, namespace, getLocalClusterInstanceId());
+            return new PulsarSagaLog(client, logId);
         } catch (PulsarClientException.ConsumerBusyException e) {
             throw new SagaLogBusyException("consumer busy - another consumer is already connected with exclusive subscription", e);
         } catch (PulsarClientException e) {

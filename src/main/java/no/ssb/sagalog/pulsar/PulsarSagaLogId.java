@@ -54,9 +54,22 @@ class PulsarSagaLogId implements SagaLogId {
         return "persistent://" + tenant + "/" + namespace + "/" + clusterInstanceId + ":" + logName;
     }
 
+    String getTenant() {
+        return tenant;
+    }
+
+    String getNamespace() {
+        return namespace;
+    }
+
     @Override
     public String getClusterInstanceId() {
         return clusterInstanceId;
+    }
+
+    @Override
+    public String getLogName() {
+        return logName;
     }
 
     @Override
@@ -73,11 +86,6 @@ class PulsarSagaLogId implements SagaLogId {
     @Override
     public int hashCode() {
         return Objects.hash(tenant, namespace, clusterInstanceId, logName);
-    }
-
-    @Override
-    public String getLogName() {
-        return logName;
     }
 
     @Override

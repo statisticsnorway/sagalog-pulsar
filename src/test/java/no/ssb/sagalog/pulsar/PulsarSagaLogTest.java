@@ -3,7 +3,6 @@ package no.ssb.sagalog.pulsar;
 import no.ssb.sagalog.SagaLog;
 import no.ssb.sagalog.SagaLogEntry;
 import no.ssb.sagalog.SagaLogEntryBuilder;
-import no.ssb.sagalog.SagaLogId;
 import org.apache.pulsar.client.admin.Namespaces;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
@@ -14,6 +13,7 @@ import org.apache.pulsar.client.impl.auth.AuthenticationDisabled;
 import org.apache.pulsar.client.impl.conf.ClientConfigurationData;
 import org.apache.pulsar.common.policies.data.Policies;
 import org.apache.pulsar.common.policies.data.TenantInfo;
+import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
@@ -34,8 +34,9 @@ import static org.testng.Assert.assertEquals;
 @Test(groups = "integration")
 public class PulsarSagaLogTest {
 
-    private static final SagaLogId SAGA_LOG_ID = new PulsarSagaLogId("mycompany", "internal-sagalog-integration-testing", "01", "the-saga-log");
+    private static final PulsarSagaLogId SAGA_LOG_ID = new PulsarSagaLogId("mycompany", "internal-sagalog-integration-testing", "01", "the-saga-log");
 
+    private PulsarClient client;
     private PulsarSagaLog sagaLog;
 
     @BeforeClass
@@ -47,9 +48,8 @@ public class PulsarSagaLogTest {
         config.setServiceUrl(adminServiceUrl);
 
         try (PulsarAdmin admin = new PulsarAdmin(adminServiceUrl, config)) {
-
-            String tenant = "mycompany";
-            String namespace = "internal-sagalog-integration-testing";
+            String tenant = SAGA_LOG_ID.getTenant();
+            String namespace = SAGA_LOG_ID.getNamespace();
             deleteAllTopicsAndNamespaces(admin, tenant);
 
             if (!admin.tenants().getTenants().contains(tenant)) {
@@ -62,16 +62,18 @@ public class PulsarSagaLogTest {
                 admin.namespaces().createNamespace(tenant + "/" + namespace, new Policies());
             }
         }
+
+        client = PulsarClient.builder().serviceUrl("pulsar://localhost:6650").build();
+    }
+
+    @AfterClass
+    public void closePulsarClients() throws PulsarClientException {
+        client.close();
     }
 
     @BeforeMethod
     private void createAndCleanPulsarSagaLog() throws PulsarClientException, PulsarAdminException {
-        sagaLog = new PulsarSagaLog(
-                null, // TODO create admin
-                SAGA_LOG_ID,
-                PulsarClient.builder().serviceUrl("pulsar://localhost:6650").build(),
-                "internal-sagalog-integration-testing",
-                "01");
+        sagaLog = new PulsarSagaLog(client, SAGA_LOG_ID);
         sagaLog.truncate().join();
     }
 

@@ -6,7 +6,6 @@ import no.ssb.sagalog.SagaLogEntryBuilder;
 import no.ssb.sagalog.SagaLogEntryId;
 import no.ssb.sagalog.SagaLogEntryType;
 import no.ssb.sagalog.SagaLogId;
-import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Message;
@@ -17,7 +16,6 @@ import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.impl.MessageIdImpl;
 import org.apache.pulsar.client.internal.DefaultImplementation;
-import org.apache.pulsar.shade.com.google.gson.JsonObject;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +26,7 @@ import java.util.Spliterators;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -35,27 +34,26 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
 
     private final PulsarSagaLogId sagaLogId;
 
-    private final PulsarAdmin admin;
-    private final Producer<byte[]> producer;
     private final Consumer<byte[]> consumer;
-
+    private final Producer<byte[]> producer;
     private final Deque<SagaLogEntry> cache = new ConcurrentLinkedDeque<>();
 
-    PulsarSagaLog(PulsarAdmin admin, SagaLogId _sagaLogId, PulsarClient client, String namespace, String clusterInstanceId) throws PulsarClientException, PulsarAdminException {
-        this.admin = admin;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+
+    PulsarSagaLog(PulsarClient client, SagaLogId _sagaLogId) throws PulsarClientException, PulsarAdminException {
         this.sagaLogId = (PulsarSagaLogId) _sagaLogId;
+
         this.consumer = client.newConsumer()
                 .topic(sagaLogId.getTopic())
                 .subscriptionType(SubscriptionType.Exclusive)
-                .consumerName(namespace + "::" + clusterInstanceId)
+                .consumerName(sagaLogId.getNamespace() + "::" + sagaLogId.getClusterInstanceId())
                 .subscriptionName("master")
                 .subscribe();
-        this.producer = client.newProducer()
-                .topic(sagaLogId.getTopic())
-                .producerName(namespace + "::" + clusterInstanceId)
-                .create();
 
-        JsonObject internalInfo = admin.topics().getInternalInfo(sagaLogId.getTopic());
+        producer = client.newProducer()
+                .topic(sagaLogId.getTopic())
+                .producerName(sagaLogId.getNamespace() + "::" + sagaLogId.getClusterInstanceId())
+                .create();
 
         readExternal().forEachOrdered(entry -> cache.add(entry));
     }
@@ -96,8 +94,10 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
                 .filter(entry -> SagaLogEntryType.Ignore != entry.getEntryType()); // remove control messages
     }
 
+
     @Override
     public CompletableFuture<SagaLogEntry> write(SagaLogEntryBuilder builder) {
+        checkNotClosed();
         return producer.sendAsync(serialize(builder)).thenApply(messageId -> {
             SagaLogEntry entry = builder.id(new PulsarSagaLogEntryId(messageId)).build();
             cache.add(entry);
@@ -107,6 +107,7 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
 
     @Override
     public CompletableFuture<Void> truncate(SagaLogEntryId messageId) {
+        checkNotClosed();
         PulsarSagaLogEntryId pulsarMessageId = (PulsarSagaLogEntryId) messageId;
         // check that message-id is in cache, if not, throw exception
         cache.stream().filter(entry -> messageId.equals(entry.getId())).findFirst().orElseThrow();
@@ -124,6 +125,7 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
 
     @Override
     public CompletableFuture<Void> truncate() {
+        checkNotClosed();
         if (cache.isEmpty()) {
             return CompletableFuture.completedFuture(null); // nothing to truncate
         }
@@ -132,12 +134,20 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
 
     @Override
     public Stream<SagaLogEntry> readIncompleteSagas() {
+        checkNotClosed();
         return cache.stream();
     }
 
     @Override
     public Stream<SagaLogEntry> readEntries(String executionId) {
+        checkNotClosed();
         return cache.stream().filter(entry -> executionId.equals(entry.getExecutionId()));
+    }
+
+    private void checkNotClosed() {
+        if (closed.get()) {
+            throw new RuntimeException(String.format("Saga-log is already closed, saga-log-id: %s", sagaLogId));
+        }
     }
 
     @Override
@@ -228,6 +238,9 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
 
     @Override
     public void close() throws PulsarClientException {
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
         try {
             producer.close();
         } finally {
