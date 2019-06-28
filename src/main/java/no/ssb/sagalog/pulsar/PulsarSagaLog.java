@@ -6,7 +6,6 @@ import no.ssb.sagalog.SagaLogEntryBuilder;
 import no.ssb.sagalog.SagaLogEntryId;
 import no.ssb.sagalog.SagaLogEntryType;
 import no.ssb.sagalog.SagaLogId;
-import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
@@ -40,7 +39,7 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    PulsarSagaLog(PulsarClient client, SagaLogId _sagaLogId) throws PulsarClientException, PulsarAdminException {
+    PulsarSagaLog(PulsarClient client, SagaLogId _sagaLogId) throws PulsarClientException {
         this.sagaLogId = (PulsarSagaLogId) _sagaLogId;
 
         this.consumer = client.newConsumer()
@@ -90,10 +89,8 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
 
         return StreamSupport.stream(
                 Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED | Spliterator.IMMUTABLE | Spliterator.NONNULL),
-                false)
-                .filter(entry -> SagaLogEntryType.Ignore != entry.getEntryType()); // remove control messages
+                false);
     }
-
 
     @Override
     public CompletableFuture<SagaLogEntry> write(SagaLogEntryBuilder builder) {
@@ -135,13 +132,16 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
     @Override
     public Stream<SagaLogEntry> readIncompleteSagas() {
         checkNotClosed();
-        return cache.stream();
+        return cache.stream()
+                .filter(entry -> SagaLogEntryType.Ignore != entry.getEntryType()); // remove control messages
     }
 
     @Override
     public Stream<SagaLogEntry> readEntries(String executionId) {
         checkNotClosed();
-        return cache.stream().filter(entry -> executionId.equals(entry.getExecutionId()));
+        return cache.stream()
+                .filter(entry -> SagaLogEntryType.Ignore != entry.getEntryType()) // remove control messages
+                .filter(entry -> executionId.equals(entry.getExecutionId()));
     }
 
     private void checkNotClosed() {
@@ -156,7 +156,7 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
     }
 
     @Override
-    public SagaLogEntryId fromString(String id) {
+    public PulsarSagaLogEntryId fromString(String id) {
         String[] parts = id.split(":");
         long ledgerId = Long.parseLong(parts[0]);
         long entryId = Long.parseLong(parts[1]);

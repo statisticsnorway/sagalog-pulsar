@@ -50,8 +50,6 @@ class PulsarSagaLogPool extends AbstractSagaLogPool {
             throw new SagaLogBusyException("consumer busy - another consumer is already connected with exclusive subscription", e);
         } catch (PulsarClientException e) {
             throw new RuntimeException(e);
-        } catch (PulsarAdminException e) {
-            throw new RuntimeException(e);
         }
     }
 
