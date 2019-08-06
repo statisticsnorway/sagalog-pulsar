@@ -35,6 +35,13 @@
         </developer>
     </developers>
 
+    <scm>
+        <connection>scm:git:git://github.com/statisticsnorway/sagalog-pulsar.git</connection>
+        <developerConnection>scm:git:git@github.com:statisticsnorway/sagalog-pulsar.git</developerConnection>
+        <url>https://github.com/statisticsnorway/sagalog-pulsar/tree/master</url>
+        <tag>HEAD</tag>
+    </scm>
+
     <distributionManagement>
         <snapshotRepository>
             <id>ossrh</id>
@@ -171,7 +178,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.1.0</version>
+                <version>3.1.1</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
