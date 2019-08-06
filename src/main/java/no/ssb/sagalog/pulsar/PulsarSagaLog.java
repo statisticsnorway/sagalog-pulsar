@@ -64,7 +64,7 @@ class PulsarSagaLog implements SagaLog, AutoCloseable {
 
     private Stream<SagaLogEntry> readExternal() {
         // produce a new control message to indicate "end-of-stream"
-        CompletableFuture lastMessageIdCompletableFuture = producer.sendAsync(serialize(builder().control()));
+        CompletableFuture<MessageId> lastMessageIdCompletableFuture = producer.sendAsync(serialize(builder().control()));
 
         Iterator<SagaLogEntry> iterator = new Iterator<>() {
             MessageId previousmessageId = null;
