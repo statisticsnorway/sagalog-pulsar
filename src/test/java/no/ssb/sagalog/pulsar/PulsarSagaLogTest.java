@@ -87,6 +87,10 @@ public class PulsarSagaLogTest {
             Namespaces namespaces = admin.namespaces();
             Topics topics = admin.topics();
             // delete all topics and namespaces for configured tenant
+            List<String> tenants = admin.tenants().getTenants();
+            if (!tenants.contains(tenant)) {
+                return; // tenant does not exist
+            }
             List<String> existingNamespaces = namespaces.getNamespaces(tenant);
             for (String namespace : existingNamespaces) {
                 for (String topic : topics.getList(namespace)) {
